@@ -68,7 +68,14 @@ public class SecurityConfig {
                                 "/api/v1/showtimes"
                         ).hasRole("ADMIN")
 
-                        // 4. Reserve admin API namespace
+                        // Admin booking search and detail
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/admin/bookings",
+                                "/api/v1/admin/bookings/*"
+                        ).hasRole("ADMIN")
+
+                        // Deny other admin APIs until implemented
                         .requestMatchers("/api/v1/admin/**")
                         .denyAll()
 
