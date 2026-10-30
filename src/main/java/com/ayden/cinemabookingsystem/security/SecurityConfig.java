@@ -34,6 +34,10 @@ public class SecurityConfig {
 
                 // Configure access rules.
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/auth/register"
+                        ).permitAll()
 
                         // Public read-only endpoints
                         .requestMatchers(
