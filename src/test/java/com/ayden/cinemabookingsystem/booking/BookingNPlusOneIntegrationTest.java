@@ -121,20 +121,40 @@ class BookingNPlusOneIntegrationTest {
             assertNotNull(name);
         }
 
-        // 10. Count SQL statements
-        long queryCount =
-                statistics.getPrepareStatementCount();
+        // 10. Record original N+1 query count
+        long beforeCount = statistics.getPrepareStatementCount();
 
-        System.out.println(
-                "Hibernate SQL Statement Count: " + queryCount
-        );
+        assertEquals(4, beforeCount);
 
-        // One booking query + three user queries
-        assertEquals(
-                4,
-                queryCount,
-                "Expected N+1 queries: 1 booking query + 3 user queries"
-        );
+        // 11. Clear previously loaded entities
+                entityManager.clear();
+
+        // 12. Reset statistics
+                statistics.clear();
+
+        // 13. Execute optimized query
+                List<Booking> optimizedBookings =
+                        bookingRepository.findByShowtimeWithUser(showtimeId);
+
+                assertEquals(3, optimizedBookings.size());
+
+        // 14. Access user details again
+                for (Booking booking : optimizedBookings) {
+                    String name = booking.getUser().getDisplayName();
+
+                    System.out.println("Optimized Booking User: " + name);
+
+                    assertNotNull(name);
+                }
+
+        // 15. Count SQL statements after optimization
+                long afterCount = statistics.getPrepareStatementCount();
+
+                System.out.println("Before JOIN FETCH: " + beforeCount);
+                System.out.println("After JOIN FETCH: " + afterCount);
+
+        // 16. Verify optimization
+                assertEquals(1, afterCount);
     }
 
     private long createUser(String name) {

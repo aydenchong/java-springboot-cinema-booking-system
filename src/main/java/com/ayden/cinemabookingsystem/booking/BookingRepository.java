@@ -19,4 +19,14 @@ public interface BookingRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Booking b WHERE b.id = :id")
     Optional<Booking> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+    SELECT b
+    FROM Booking b
+    JOIN FETCH b.user
+    WHERE b.showtime.id = :showtimeId
+    """)
+    List<Booking> findByShowtimeWithUser(
+            @Param("showtimeId") Long showtimeId
+    );
 }
