@@ -8,8 +8,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -17,8 +22,10 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http
-    ) {
+            HttpSecurity http,
+            JwtAuthenticationConverter jwtAuthenticationConverter
+    ) throws Exception {
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
 
@@ -33,14 +40,14 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // Public authentication endpoints
+                        // 1. Public authentication
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login"
                         ).permitAll()
 
-                        // Public read endpoints
+                        // 2. Public read endpoints
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/movies",
@@ -52,12 +59,33 @@ public class SecurityConfig {
                                 "/api/v1/showtimes/*"
                         ).permitAll()
 
-                        // All other endpoints require a valid JWT
-                        .anyRequest().authenticated()
+                        // 3. Admin management endpoints
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/movies",
+                                "/api/v1/halls",
+                                "/api/v1/halls/*/seats",
+                                "/api/v1/showtimes"
+                        ).hasRole("ADMIN")
+
+                        // 4. Reserve admin API namespace
+                        .requestMatchers("/api/v1/admin/**")
+                        .denyAll()
+
+                        // 5. Booking endpoints require JWT
+                        .requestMatchers("/api/v1/bookings/**")
+                        .authenticated()
+
+                        // 6. Deny everything not explicitly allowed
+                        .anyRequest().denyAll()
                 )
 
                 .oauth2ResourceServer(oauth2 ->
-                        oauth2.jwt(jwt -> {})
+                        oauth2.jwt(jwt ->
+                                jwt.jwtAuthenticationConverter(
+                                        jwtAuthenticationConverter
+                                )
+                        )
                 )
 
                 .exceptionHandling(exceptions -> exceptions
@@ -80,6 +108,23 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+
+        JwtGrantedAuthoritiesConverter authorities =
+                new JwtGrantedAuthoritiesConverter();
+
+        authorities.setAuthoritiesClaimName("role");
+        authorities.setAuthorityPrefix("ROLE_");
+
+        JwtAuthenticationConverter converter =
+                new JwtAuthenticationConverter();
+
+        converter.setJwtGrantedAuthoritiesConverter(authorities);
+
+        return converter;
     }
 
     @Bean
