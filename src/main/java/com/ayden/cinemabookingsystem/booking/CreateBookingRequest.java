@@ -8,9 +8,6 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 public record CreateBookingRequest(
-        @NotNull
-        @Positive
-        Long userId,
 
         @NotNull
         @Positive

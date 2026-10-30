@@ -48,7 +48,10 @@ public class BookingService {
     }
 
     @Transactional
-    public BookingResponse createBooking(CreateBookingRequest request) {
+    public BookingResponse createBooking(
+            Long currentUserId,
+            CreateBookingRequest request
+    ) {
 
         // 1. Reject repeated seat IDs in one request
         if (request.seatIds().size()
@@ -60,7 +63,7 @@ public class BookingService {
         }
 
         // 2. Find user
-        AppUser user = userRepository.findById(request.userId())
+        AppUser user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "User not found"
@@ -163,7 +166,10 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
-    public BookingResponse getBookingById(Long id) {
+    public BookingResponse getBookingById(
+            Long id,
+            Long currentUserId
+    ) {
 
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -174,6 +180,12 @@ public class BookingService {
         List<BookingSeat> bookingSeats =
                 bookingSeatRepository.findByBooking_Id(id);
 
+        if (!booking.getUser().getId().equals(currentUserId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You do not own this booking"
+            );
+        }
         List<BookingResponse.ReservedSeatResponse> seats =
                 bookingSeats.stream()
                         .map(bs -> new BookingResponse.ReservedSeatResponse(
@@ -198,8 +210,10 @@ public class BookingService {
     }
 
     @Transactional
-    public BookingResponse cancelBooking(Long bookingId) {
-
+    public BookingResponse cancelBooking(
+            Long bookingId,
+            Long currentUserId
+    ) {
         // 1. Lock the booking row
         Booking booking = bookingRepository
                 .findByIdForUpdate(bookingId)
@@ -207,6 +221,13 @@ public class BookingService {
                         HttpStatus.NOT_FOUND,
                         "Booking not found"
                 ));
+
+        if (!booking.getUser().getId().equals(currentUserId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You do not own this booking"
+            );
+        }
 
         // 2. Reject already cancelled bookings
         if (!"CONFIRMED".equals(booking.getStatus())) {

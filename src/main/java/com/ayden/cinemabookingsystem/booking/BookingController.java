@@ -3,6 +3,8 @@ package com.ayden.cinemabookingsystem.booking;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -19,32 +21,45 @@ public class BookingController {
 
     @PostMapping
     public ResponseEntity<BookingResponse> createBooking(
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateBookingRequest request
     ) {
-        BookingResponse response =
-                bookingService.createBooking(request);
+        Long currentUserId = Long.valueOf(jwt.getSubject());
 
-        URI location = URI.create(
-                "/api/v1/bookings/" + response.id()
-        );
+        BookingResponse response =
+                bookingService.createBooking(currentUserId, request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .location(location)
+                .location(URI.create(
+                        "/api/v1/bookings/" + response.id()
+                ))
                 .body(response);
     }
 
     @GetMapping("/{id}")
     public BookingResponse getBookingById(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long id
     ) {
-        return bookingService.getBookingById(id);
+        Long currentUserId = Long.valueOf(jwt.getSubject());
+
+        return bookingService.getBookingById(
+                id,
+                currentUserId
+        );
     }
 
     @PatchMapping("/{id}/cancel")
     public BookingResponse cancelBooking(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long id
     ) {
-        return bookingService.cancelBooking(id);
+        Long currentUserId = Long.valueOf(jwt.getSubject());
+
+        return bookingService.cancelBooking(
+                id,
+                currentUserId
+        );
     }
 }
