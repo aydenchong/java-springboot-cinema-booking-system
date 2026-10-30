@@ -196,4 +196,91 @@ public class BookingService {
                 booking.getCreatedAt()
         );
     }
+
+    @Transactional
+    public BookingResponse cancelBooking(Long bookingId) {
+
+        // 1. Lock the booking row
+        Booking booking = bookingRepository
+                .findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Booking not found"
+                ));
+
+        // 2. Reject already cancelled bookings
+        if (!"CONFIRMED".equals(booking.getStatus())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Booking is already cancelled"
+            );
+        }
+
+        // 3. Do not allow cancellation after showtime starts
+        if (!booking.getShowtime().getStartsAt()
+                .isAfter(OffsetDateTime.now())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot cancel a booking after the showtime starts"
+            );
+        }
+
+        // 4. Load all reserved seats belonging to this booking
+        List<BookingSeat> bookingSeats =
+                bookingSeatRepository.findByBooking_Id(bookingId);
+
+        if (bookingSeats.isEmpty()) {
+            throw new IllegalStateException(
+                    "Confirmed booking has no reserved seats"
+            );
+        }
+
+        for (BookingSeat bookingSeat : bookingSeats) {
+            if (!"RESERVED".equals(bookingSeat.getStatus())) {
+                throw new IllegalStateException(
+                        "Confirmed booking has a non-reserved seat"
+                );
+            }
+        }
+
+        // 5. Use the same cancellation timestamp
+        OffsetDateTime cancelledAt = OffsetDateTime.now();
+
+        // 6. Cancel the parent booking
+        booking.cancel(cancelledAt);
+
+        // 7. Cancel every reserved seat
+        for (BookingSeat bookingSeat : bookingSeats) {
+            bookingSeat.cancel(cancelledAt);
+        }
+
+        // 8. Flush changes to PostgreSQL
+        bookingSeatRepository.flush();
+        bookingRepository.flush();
+
+        // 9. Build the response
+        List<BookingResponse.ReservedSeatResponse> seatResponses =
+                bookingSeats.stream()
+                        .map(bs ->
+                                new BookingResponse.ReservedSeatResponse(
+                                        bs.getSeat().getId(),
+                                        bs.getSeat().getSeatCode(),
+                                        bs.getStatus()
+                                )
+                        )
+                        .sorted((a, b) ->
+                                a.seatCode().compareTo(b.seatCode()))
+                        .toList();
+
+        return new BookingResponse(
+                booking.getId(),
+                booking.getUser().getId(),
+                booking.getShowtime().getId(),
+                booking.getShowtime().getMovie().getTitle(),
+                booking.getShowtime().getHall().getName(),
+                seatResponses,
+                booking.getStatus(),
+                booking.getCreatedAt()
+        );
+    }
 }
