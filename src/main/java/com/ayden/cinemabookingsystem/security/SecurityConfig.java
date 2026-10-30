@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -19,7 +20,6 @@ public class SecurityConfig {
             HttpSecurity http
     ) {
         http
-                // Stateless REST API using Bearer tokens later.
                 .csrf(AbstractHttpConfigurer::disable)
 
                 .sessionManagement(session ->
@@ -28,18 +28,19 @@ public class SecurityConfig {
                         )
                 )
 
-                // Disable browser login mechanisms.
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
 
-                // Configure access rules.
                 .authorizeHttpRequests(auth -> auth
+
+                        // Public authentication endpoints
                         .requestMatchers(
                                 HttpMethod.POST,
-                                "/api/v1/auth/register"
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/login"
                         ).permitAll()
 
-                        // Public read-only endpoints
+                        // Public read endpoints
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/movies",
@@ -51,15 +52,18 @@ public class SecurityConfig {
                                 "/api/v1/showtimes/*"
                         ).permitAll()
 
-                        // Everything else requires authentication.
+                        // All other endpoints require a valid JWT
                         .anyRequest().authenticated()
                 )
 
-                // Return proper REST API status codes.
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(jwt -> {})
+                )
+
                 .exceptionHandling(exceptions -> exceptions
 
                         .authenticationEntryPoint(
-                                (request, response, authException) ->
+                                (request, response, ex) ->
                                         response.sendError(
                                                 HttpStatus.UNAUTHORIZED.value(),
                                                 "Authentication required"
@@ -67,7 +71,7 @@ public class SecurityConfig {
                         )
 
                         .accessDeniedHandler(
-                                (request, response, deniedException) ->
+                                (request, response, ex) ->
                                         response.sendError(
                                                 HttpStatus.FORBIDDEN.value(),
                                                 "Access denied"

@@ -1,3 +1,22 @@
 spring:
   application:
     name: cinema-booking-system
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cinereserve
+    username: cinereserve
+    password: ${POSTGRES_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: cinereserve
+    expiration-minutes: 30

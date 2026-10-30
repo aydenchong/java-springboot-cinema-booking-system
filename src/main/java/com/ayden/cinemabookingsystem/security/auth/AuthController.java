@@ -29,5 +29,12 @@ public class AuthController {
                 .location(URI.create("/api/v1/users/" + response.id()))
                 .body(response);
     }
+
+    @PostMapping("/login")
+    public LoginResponse login(
+            @Valid @RequestBody LoginRequest request
+    ) {
+        return authService.login(request);
+    }
 }
 

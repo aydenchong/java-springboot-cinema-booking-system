@@ -11,7 +11,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.sql.SQLException;
 import java.util.Locale;
 
@@ -21,15 +26,24 @@ public class AuthService {
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EntityManager entityManager;
+    private final JwtEncoder jwtEncoder;
+
+    @Value("${app.jwt.issuer}")
+    private String jwtIssuer;
+
+    @Value("${app.jwt.expiration-minutes}")
+    private long expirationMinutes;
 
     public AuthService(
             AppUserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            EntityManager entityManager
+            EntityManager entityManager,
+            JwtEncoder jwtEncoder
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.entityManager = entityManager;
+        this.jwtEncoder = jwtEncoder;
     }
 
     @Transactional
@@ -113,6 +127,66 @@ public class AuthService {
         }
 
         return false;
+    }
+
+    @Transactional(readOnly = true)
+    public LoginResponse login(LoginRequest request) {
+
+        String email = request.email()
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        AppUser user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Invalid email or password"
+                ));
+
+        if (user.getPasswordHash() == null ||
+                !passwordEncoder.matches(
+                        request.password(),
+                        user.getPasswordHash()
+                )) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid email or password"
+            );
+        }
+
+        if (expirationMinutes <= 0) {
+            throw new IllegalStateException(
+                    "JWT expiration must be positive"
+            );
+        }
+
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(
+                Duration.ofMinutes(expirationMinutes)
+        );
+
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(jwtIssuer)
+                .issuedAt(now)
+                .expiresAt(expiresAt)
+                .subject(user.getId().toString())
+                .claim("role", user.getRole().name())
+                .build();
+
+        JwsHeader header = JwsHeader
+                .with(MacAlgorithm.HS256)
+                .build();
+
+        String accessToken = jwtEncoder.encode(
+                JwtEncoderParameters.from(header, claims)
+        ).getTokenValue();
+
+        return new LoginResponse(
+                accessToken,
+                "Bearer",
+                Duration.between(now, expiresAt).toSeconds(),
+                user.getId(),
+                user.getRole().name()
+        );
     }
 }
 
