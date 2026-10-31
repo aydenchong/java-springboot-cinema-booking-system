@@ -80,6 +80,12 @@ public class SecurityConfig {
                                 "/api/v1/admin/bookings/{id}/cancel"
                         ).hasRole("ADMIN")
 
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/admin/booking-audits",
+                                "/api/v1/admin/booking-audits/*"
+                        ).hasRole("ADMIN")
+
                         // Deny other admin APIs until implemented
                         .requestMatchers("/api/v1/admin/**")
                         .denyAll()
