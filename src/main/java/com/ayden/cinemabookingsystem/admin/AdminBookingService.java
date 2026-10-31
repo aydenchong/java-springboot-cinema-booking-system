@@ -4,9 +4,9 @@ import com.ayden.cinemabookingsystem.booking.Booking;
 import com.ayden.cinemabookingsystem.booking.BookingRepository;
 import com.ayden.cinemabookingsystem.booking.BookingResponse;
 import com.ayden.cinemabookingsystem.booking.BookingService;
+import com.ayden.cinemabookingsystem.security.AdminCancellationAuthorization;
 import com.ayden.cinemabookingsystem.user.AppUser;
 import com.ayden.cinemabookingsystem.user.AppUserRepository;
-import com.ayden.cinemabookingsystem.user.UserRole;
 
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,15 +31,18 @@ public class AdminBookingService {
     private final BookingRepository bookingRepository;
     private final AppUserRepository userRepository;
     private final BookingService bookingService;
+    private final JdbcTemplate jdbcTemplate;
 
     public AdminBookingService(
             BookingRepository bookingRepository,
             AppUserRepository userRepository,
-            BookingService bookingService
+            BookingService bookingService,
+            JdbcTemplate jdbcTemplate
     ) {
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
         this.bookingService = bookingService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional(readOnly = true)
@@ -146,19 +150,55 @@ public class AdminBookingService {
         );
     }
 
-    private void verifyAdmin(Long adminId) {
+    private AdminCancellationAuthorization.VerifiedAdmin verifyAdmin(
+            Long adminId
+    ) {
+        return AdminCancellationAuthorization.requireAdmin(
+                userRepository,
+                adminId
+        );
+    }
 
-        AppUser admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "Administrator access required"
-                ));
+    @Transactional
+    public BookingResponse cancelBooking(
+            Long adminId,
+            Long bookingId,
+            AdminCancelBookingRequest request
+    ) {
+        // 1. Verify current ADMIN role in PostgreSQL
+        AdminCancellationAuthorization.VerifiedAdmin verifiedAdmin =
+                verifyAdmin(adminId);
+        // 2. Validate and normalize the reason
+        String reason = request.reason().trim();
 
-        if (admin.getRole() != UserRole.ADMIN) {
+        if (reason.length() < 10 || reason.length() > 500) {
             throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Administrator access required"
+                    HttpStatus.BAD_REQUEST,
+                    "Cancellation reason must contain 10 to 500 characters"
             );
         }
+
+        // 3. Reuse the shared cancellation rules without fabricating
+        // a customer identity from the booking owner. The opaque capability
+        // proves that the current database ADMIN check already passed.
+        BookingResponse response =
+                bookingService.cancelBookingForVerifiedAdmin(
+                        bookingId,
+                        verifiedAdmin
+                );
+
+        // 4. Record the ADMIN action in the same transaction
+        jdbcTemplate.update(
+                """
+                INSERT INTO admin_booking_audit
+                    (booking_id, admin_user_id, action, reason)
+                VALUES (?, ?, 'CANCEL', ?)
+                """,
+                bookingId,
+                verifiedAdmin.id(),
+                reason
+        );
+
+        return response;
     }
 }

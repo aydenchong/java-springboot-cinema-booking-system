@@ -15,8 +15,18 @@ spring:
   flyway:
     enabled: true
 
+  logging:
+    level:
+      org.springframework.security: TRACE
+
 app:
   jwt:
     secret: ${JWT_SECRET}
     issuer: cinereserve
     expiration-minutes: 30
+
+  logging:
+    level:
+      org.springframework.security: TRACE
+
+

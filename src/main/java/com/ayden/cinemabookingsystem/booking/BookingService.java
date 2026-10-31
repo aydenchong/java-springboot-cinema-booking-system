@@ -2,6 +2,7 @@ package com.ayden.cinemabookingsystem.booking;
 
 import com.ayden.cinemabookingsystem.hall.Seat;
 import com.ayden.cinemabookingsystem.hall.SeatRepository;
+import com.ayden.cinemabookingsystem.security.AdminCancellationAuthorization;
 import com.ayden.cinemabookingsystem.showtime.Showtime;
 import com.ayden.cinemabookingsystem.showtime.ShowtimeRepository;
 import com.ayden.cinemabookingsystem.user.AppUser;
@@ -180,6 +181,7 @@ public class BookingService {
         List<BookingSeat> bookingSeats =
                 bookingSeatRepository.findByBooking_Id(id);
 
+
         if (!booking.getUser().getId().equals(currentUserId)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -214,6 +216,44 @@ public class BookingService {
             Long bookingId,
             Long currentUserId
     ) {
+        return cancelBookingInternal(
+                bookingId,
+                currentUserId,
+                true
+        );
+    }
+
+    /**
+     * Cancels a booking for an administrator after the caller has verified
+     * the current database ADMIN role in AdminBookingService.
+     *
+     * This method shares the same lock, eligibility, seat, flush and response
+     * logic as customer cancellation, but intentionally does not apply the
+     * customer ownership rule.
+     */
+    @Transactional
+    public BookingResponse cancelBookingForVerifiedAdmin(
+            Long bookingId,
+            AdminCancellationAuthorization.VerifiedAdmin verifiedAdmin
+    ) {
+        if (verifiedAdmin == null) {
+            throw new IllegalArgumentException(
+                    "Verified administrator authorization is required"
+            );
+        }
+
+        return cancelBookingInternal(
+                bookingId,
+                null,
+                false
+        );
+    }
+
+    private BookingResponse cancelBookingInternal(
+            Long bookingId,
+            Long currentUserId,
+            boolean enforceOwnership
+    ) {
         // 1. Lock the booking row
         Booking booking = bookingRepository
                 .findByIdForUpdate(bookingId)
@@ -222,7 +262,8 @@ public class BookingService {
                         "Booking not found"
                 ));
 
-        if (!booking.getUser().getId().equals(currentUserId)) {
+        if (enforceOwnership &&
+                !booking.getUser().getId().equals(currentUserId)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "You do not own this booking"

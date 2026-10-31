@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/admin/bookings")
@@ -50,6 +51,23 @@ public class AdminBookingController {
         return adminBookingService.getBookingById(
                 adminId,
                 id
+        );
+    }
+
+    @PatchMapping("/{id}/cancel")
+    public BookingResponse cancelBooking(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long id,
+            @Valid @RequestBody AdminCancelBookingRequest request
+    ) {
+        System.out.println("DEBUG: Entered Admin Cancel Controller");
+
+        Long adminId = Long.valueOf(jwt.getSubject());
+
+        return adminBookingService.cancelBooking(
+                adminId,
+                id,
+                request
         );
     }
 }

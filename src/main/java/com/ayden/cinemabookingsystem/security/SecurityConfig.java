@@ -16,7 +16,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 
 import org.springframework.security.web.SecurityFilterChain;
-
+import jakarta.servlet.DispatcherType;
 @Configuration
 public class SecurityConfig {
 
@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
 
                 .authorizeHttpRequests(auth -> auth
-
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // 1. Public authentication
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -73,6 +73,11 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/v1/admin/bookings",
                                 "/api/v1/admin/bookings/*"
+                        ).hasRole("ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/admin/bookings/{id}/cancel"
                         ).hasRole("ADMIN")
 
                         // Deny other admin APIs until implemented
