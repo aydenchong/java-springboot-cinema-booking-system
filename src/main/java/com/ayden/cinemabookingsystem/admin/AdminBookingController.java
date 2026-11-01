@@ -60,8 +60,6 @@ public class AdminBookingController {
             @PathVariable Long id,
             @Valid @RequestBody AdminCancelBookingRequest request
     ) {
-        System.out.println("DEBUG: Entered Admin Cancel Controller");
-
         Long adminId = Long.valueOf(jwt.getSubject());
 
         return adminBookingService.cancelBooking(
