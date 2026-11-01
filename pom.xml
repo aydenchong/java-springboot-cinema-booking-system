@@ -14,7 +14,8 @@
     <name>cinema-booking-system</name>
     <description>
         Cinema booking REST API with transactional seat reservations,
-        concurrency control, PostgreSQL, and Redis caching.
+        PostgreSQL concurrency control, JWT authentication,
+        admin authorization, and audit logging.
     </description>
     <url/>
     <licenses>

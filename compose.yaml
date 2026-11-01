@@ -1,3 +1,4 @@
+
 services:
   postgres:
     image: postgres:17
@@ -20,6 +21,30 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: cinereserve-app
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cinereserve
+      SPRING_DATASOURCE_USERNAME: cinereserve
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Password is required}
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/cinereserve
+      SPRING_FLYWAY_USER: cinereserve
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?Password is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT secret is required}
+
+    ports:
+      - "127.0.0.1:8080:8080"
 
 volumes:
   postgres_data:
